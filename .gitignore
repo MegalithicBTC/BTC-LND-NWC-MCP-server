@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+*.log
+.DS_Store
+
+# Generated full-node stack (contains credentials) and node data
+fullnode/docker-compose.yml
+fullnode/stack.json
+fullnode/bitcoin/
+fullnode/lnd/
+fullnode/albyhub/
