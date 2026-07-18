@@ -4,6 +4,7 @@
  * want the GUI:
  *
  *   npm run fullnode -- --network signet --prune 20000 --no-alby --alias "my node"
+ *   npm run fullnode -- --datadir E:/bitcoin-data   # store the blockchain elsewhere
  */
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -21,6 +22,7 @@ const stack = generateFullNodeStack({
   pruneMb: Number(flag("prune") ?? 80_000),
   withAlbyHub: !args.includes("--no-alby"),
   alias: flag("alias") ?? "btc-mcp-srv node",
+  dataDir: flag("datadir") ?? "",
 });
 
 const dir = join(packageRoot, "fullnode");

@@ -177,6 +177,12 @@ export const SETUP_PAGE = /* html */ `<!DOCTYPE html>
           Include Alby Hub (recommended — gives you NWC)</label>
       </div>
     </div>
+    <label for="fnDataDir">Bitcoin Core data folder (blockchain storage)</label>
+    <input type="text" id="fnDataDir" placeholder="./bitcoin  (default — inside fullnode/)">
+    <div class="hint">Where Bitcoin Core keeps the blockchain (tens to hundreds of GB). Leave empty for the
+      default <code>fullnode/bitcoin/</code>, or point it at another drive — e.g. <code>E:/bitcoin-data</code>
+      or <code>/mnt/ssd/bitcoin</code>. Create the folder first. You can change this later and regenerate
+      the stack; stop the node and move the existing data there before restarting.</div>
     <div class="actions">
       <button class="btn btn-primary" id="btnFn" onclick="genFullnode()">🧱 Generate stack files</button>
     </div>
@@ -372,6 +378,7 @@ export const SETUP_PAGE = /* html */ `<!DOCTYPE html>
 const SERVER_PATH = "__SERVER_PATH__"; // injected by the setup server
 let backend = 'nwc';
 let autoSyncTimer = null;
+let metaPrefilled = false; // fill step 2 from an existing stack.json only once
 const $ = (id) => document.getElementById(id);
 
 async function api(path, body) {
@@ -397,6 +404,15 @@ async function checkPrereqs() {
   list.innerHTML = '<li><span class="dot wait">●</span> Checking…</li>';
   try {
     const r = await api('/api/node/prereqs');
+    // If a stack was already generated, reflect its settings in step 2 so the
+    // data folder (and network/Alby choice) can be reviewed and changed.
+    if (!metaPrefilled && r.stack && r.stack.meta) {
+      metaPrefilled = true;
+      const m = r.stack.meta;
+      if (m.network) $('fnNetwork').value = m.network;
+      $('fnAlby').checked = m.withAlbyHub !== false;
+      if (m.dataDir && m.dataDir !== './bitcoin') $('fnDataDir').value = m.dataDir;
+    }
     const li = [];
     const item = (ok, text) => '<li><span class="dot ' + (ok ? 'ok' : 'err') +
       '">●</span> ' + text + '</li>';
@@ -409,7 +425,9 @@ async function checkPrereqs() {
       : 'Docker Compose not found'));
     li.push(item(r.stack.generated, r.stack.generated
       ? 'Stack generated (' + (r.stack.meta ? r.stack.meta.network : '?') +
-        (r.stack.meta && r.stack.meta.withAlbyHub ? ' + Alby Hub' : '') + ') — see step 3'
+        (r.stack.meta && r.stack.meta.withAlbyHub ? ' + Alby Hub' : '') +
+        (r.stack.meta && r.stack.meta.dataDir && r.stack.meta.dataDir !== './bitcoin'
+          ? ', data → ' + r.stack.meta.dataDir : '') + ') — see step 3'
       : 'Stack not generated yet — do step 2'));
     list.innerHTML = li.join('');
   } catch (e) {
@@ -427,6 +445,7 @@ async function genFullnode() {
       pruneMb: Number($('fnPrune').value || 0),
       withAlbyHub: $('fnAlby').checked,
       alias: $('fnAlias').value,
+      dataDir: $('fnDataDir').value,
     });
     if (r.ok) {
       setStat('fnStatus', 'ok', '✓ Stack written to ' + r.dir +

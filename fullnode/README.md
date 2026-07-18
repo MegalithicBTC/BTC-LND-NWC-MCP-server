@@ -27,12 +27,36 @@ full node** — or from the command line:
 npm run fullnode -- --network mainnet --prune 80000
 # options: --network mainnet|testnet4|signet  --prune <MB, 0=archival>
 #          --no-alby  --alias "my node"
+#          --datadir <path>   store the blockchain elsewhere (see below)
 ```
 
 This writes `docker-compose.yml`, `bitcoin/bitcoin.conf` and
 `lnd/lnd.conf` here, with a fresh RPC password wiring bitcoind ↔ lnd
 together. Try **signet** first if you're new to this — it syncs in
 minutes and uses valueless test coins.
+
+### Choosing where Bitcoin Core stores the blockchain
+
+By default the chain data lives in `fullnode/bitcoin/`. Because a mainnet
+node needs hundreds of GB, you can put it on another drive — the setup
+GUI has a *Bitcoin Core data folder* field in **step 2**, or pass
+`--datadir` on the CLI:
+
+```bash
+npm run fullnode -- --network mainnet --datadir E:/bitcoin-data   # Windows
+npm run fullnode -- --network mainnet --datadir /mnt/ssd/bitcoin  # Linux/macOS
+```
+
+Create the folder first. When the data directory is relocated, the
+generated `bitcoin.conf` still lives in `fullnode/bitcoin/` and is
+mounted **read-only** into the container, so your RPC credentials are
+never copied around.
+
+**To change the folder later**, set the new path in step 2 (or rerun the
+CLI with a new `--datadir`) and regenerate. Then stop the stack
+(`docker compose down`), move the existing chain data to the new folder,
+and start it again — otherwise the node re-downloads the blockchain from
+scratch.
 
 ## 2. Start it
 

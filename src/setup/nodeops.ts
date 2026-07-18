@@ -19,6 +19,9 @@ const metaPath = join(fullnodeDir, "stack.json");
 export interface StackMeta {
   network: FullNodeNetwork;
   withAlbyHub: boolean;
+  /** Bitcoin Core data directory (host path). Absent in stacks generated
+   *  before this option existed — treat as the default ./bitcoin. */
+  dataDir?: string;
   generatedAt: string;
 }
 
