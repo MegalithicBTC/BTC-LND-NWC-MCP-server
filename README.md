@@ -15,6 +15,7 @@
 - **Two backends, one interface** — connect via **NWC (Nostr Wallet Connect)** to almost any modern wallet (Alby Hub, coinos, Primal, LNbits, …) or directly to your own **LND node** over REST. Adding more backends is a single file.
 - **Spending guard-rails built for agents** — a per-payment cap (`MAX_SEND_SATS`), a rolling 24-hour budget (`DAILY_BUDGET_SATS`), and a routing-fee ceiling (`MAX_FEE_PERCENT`). Set `MAX_SEND_SATS=0` for a receive-only wallet.
 - **Trust, but verify** — invoices are decoded locally before paying; expired invoices are rejected; Lightning-address invoices are checked against the requested amount so a malicious LNURL server can't inflate the charge.
+- **L402 paywalls (machine-payable APIs)** — `l402_fetch` handles the whole [L402/LSAT](https://github.com/lightninglabs/L402) flow: it reads the HTTP 402 challenge, quotes the price to the agent, pays the invoice through whichever backend you configured (direct LND or any NWC wallet — no extra services needed), verifies the preimage, and retries with the `Authorization: L402 macaroon:preimage` token. Tokens are cached per origin so a resource is never paid twice.
 - **Agent-friendly output** — every tool returns structured JSON, and errors come back as readable tool errors instead of crashing the server.
 - **Graphical setup wizard** — `npm run setup` opens a local web GUI to configure the backend, test the wallet connection, and generate your MCP client config. No hand-editing of env files required.
 - **Your own full node, optional** — one click (or `npm run fullnode`) generates a Docker Compose stack running **Bitcoin Core + LND + Alby Hub (NWC)** on the same device, pre-wired together, so your agents can transact through a node you fully control. See [`fullnode/README.md`](fullnode/README.md).
@@ -28,8 +29,22 @@
 | `decode_invoice` | Decode a BOLT11 invoice locally before paying | No |
 | `lookup_invoice` | Check if an invoice was paid (by payment hash) | No |
 | `list_transactions` | Recent incoming/outgoing payments | No |
+| `l402_tokens` | List/forget cached L402 tokens | No |
+| `l402_fetch` (no `max_sats`) | Fetch an L402 URL / get its price quote | No |
+| `l402_fetch` (with `max_sats`) | Pay an L402 challenge and fetch the resource | **Yes** |
 | `pay_invoice` | Pay a BOLT11 invoice | **Yes** |
 | `pay_lightning_address` | Pay `user@domain` via LNURL-pay | **Yes** |
+
+### Paying for L402-protected APIs
+
+[L402](https://github.com/lightninglabs/L402) (formerly LSAT) is the "HTTP 402 Payment Required" protocol used by machine-payable APIs: the server answers with a macaroon + Lightning invoice, the client pays and retries with `Authorization: L402 <macaroon>:<preimage>`.
+
+The flow is deliberately two-step so the agent always sees the price before spending:
+
+1. `l402_fetch { url }` — never pays. Returns the resource if it's free (or a token is already cached), otherwise the quote: amount in sats, description, invoice.
+2. `l402_fetch { url, max_sats }` — pays only if the invoiced amount is ≤ `max_sats` **and** within `MAX_SEND_SATS` / `DAILY_BUDGET_SATS`, verifies that `sha256(preimage) == payment_hash`, caches the token for the origin, and returns the resource.
+
+Works with both backends (LND and NWC) — payment goes through the exact same code path and spending guard as `pay_invoice`.
 
 ## Quick start
 
@@ -154,6 +169,7 @@ This server hands an AI agent the keys to real money. Layer your defenses:
 4. **Secrets stay in env.** The connection string / macaroon never crosses the MCP channel, and `.env` is git-ignored.
 5. **Treat wallet data as untrusted input.** Invoice descriptions, LNURL metadata and transaction memos are attacker-controlled text that flows back to the AI agent — a malicious payee could embed instructions in them (prompt injection). The spending limits are the backstop for exactly this class of attack; keep them tight.
 6. **Hardened by design.** The setup GUI binds to 127.0.0.1, validates the `Host` header (DNS-rebinding protection) and blocks cross-site requests; LNURL-pay callbacks must be HTTPS on a public hostname (SSRF guard); spending-budget reservations are atomic, include the maximum routing fee, and are released on failed payments.
+7. **L402 is quote-first.** `l402_fetch` never spends without an explicit `max_sats` from the caller, refuses zero-amount and expired invoices, verifies the payment preimage against the invoice hash before trusting the token, only talks to HTTPS origins (HTTP allowed for localhost only), doesn't follow redirects, and every payment still passes through the same spending guard as `pay_invoice`. The token cache is in-memory and per-origin.
 
 Known limitations: the 24h ledger lives in memory (restarting the server resets it — wallet-side budgets don't have this gap), and `LND_SKIP_CERT_VERIFY=true` disables TLS verification and should only ever be used on localhost.
 
@@ -178,6 +194,7 @@ src/
 ├── tools.ts          # MCP tool definitions
 ├── safety.ts         # spending guard (per-payment cap + 24h budget)
 ├── bolt11.ts         # local BOLT11 decoding
+├── l402.ts           # L402/LSAT client (challenge parsing, tokens)
 ├── lnaddress.ts      # Lightning address (LUD-16) resolution
 ├── types.ts          # LightningBackend interface + domain types
 ├── backends/

@@ -24,15 +24,17 @@ async function main(): Promise<void> {
   const server = new McpServer(
     {
       name: "btc-mcp-srv",
-      version: "0.4.0",
+      version: "0.5.0",
     },
     {
       instructions:
         "Bitcoin Lightning wallet tools. Amounts are in satoshis " +
-        "(1 BTC = 100,000,000 sats). pay_invoice and " +
-        "pay_lightning_address move real money and are subject to " +
-        "configured spending limits; use decode_invoice first to inspect " +
-        "an invoice before paying it. Sponsored by LIGHTPHON.com.",
+        "(1 BTC = 100,000,000 sats). pay_invoice, pay_lightning_address " +
+        "and l402_fetch (with max_sats set) move real money and are " +
+        "subject to configured spending limits; use decode_invoice first " +
+        "to inspect an invoice before paying it. l402_fetch without " +
+        "max_sats safely returns the price quote of an L402-paywalled " +
+        "URL. Sponsored by LIGHTPHON.com.",
     },
   );
 
